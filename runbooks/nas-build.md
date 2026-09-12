@@ -12,8 +12,8 @@ is a one-line edit in the ledger.
 
 The heavy single-copy mass lives on working nodes, with no replication target anywhere:
 
-- a personal records archive (finance, tax, business history) that had been a live
-  archive of record on one node, single copy;
+- a personal records archive that had been a live archive of record on one
+  node, single copy;
 - a large processed document estate, single copy since a relocation;
 - a vault estate, single copy;
 - a model zoo and model mass on a node's data disk, re-fetchable in principle but
@@ -163,9 +163,9 @@ failure here loses the copy, not the data.
 
 | concern | size | where | risk today |
 |---|---|---|---|
-| the personal records archive | 4.2G | one node only | IRREPLACEABLE, single copy |
-| the processed document estate | 4.1G | one node only | IRREPLACEABLE, single copy |
-| the vault estate | 3.4G | one node only | IRREPLACEABLE, single copy |
+| the personal records archive | about 4G | one node only | IRREPLACEABLE, single copy |
+| the processed document estate | about 4G | one node only | IRREPLACEABLE, single copy |
+| the vault estate | about 3G | one node only | IRREPLACEABLE, single copy |
 | sovereign bare repos (the canon origins) | 490M | one node only | working clones exist rig-wide, the BARE does not |
 | fabric memory and sediment | 65M | head node, nightly replica elsewhere | has a second copy already |
 | **subtotal, the true archive of record** | **roughly 12.3G** | | **lands in minutes** |

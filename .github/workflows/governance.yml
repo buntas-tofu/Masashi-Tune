@@ -18,6 +18,21 @@ jobs:
       - name: Run the DMF invariant linter
         run: python3 scripts/inertia-drift-lint .
 
+  selftest:
+    name: Harness self-tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: Install the one declared dependency
+        run: pip install httpx
+      - name: Run the harness self-tests
+        run: |
+          cd harness
+          python -m harness selftest
+
   manifest:
     name: Manifest validation
     runs-on: ubuntu-latest

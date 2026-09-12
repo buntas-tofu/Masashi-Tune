@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""face_bench.py: the face bench runner (docket 65, born 2026-08-07).
+"""face_bench.py: the face bench runner (born 2026-08-07).
 
 The performance comparison the operator wants before the final vessel call.
 Field: gemma-4-26B-A4B (incumbent) against Nemotron-3-Nano-Omni NVFP4, with
@@ -14,7 +14,7 @@ and are deployment reality, recorded in the manifest rather than hidden.
 
 Scope envelope, stated beside the verdict per the corpus-bounds card: text
 faculties and speed only. The tool lane is deferred to round 2 with the
-operator's own persona re-test (docket 60). Vision is a plumbing smoke, not
+operator's own persona re-test. Vision is a plumbing smoke, not
 a scored lane. Persona register beyond the countable laws is the operator's
 own read; transcripts ride with the report.
 

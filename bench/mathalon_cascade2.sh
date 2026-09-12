@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # mathalon_cascade2.sh: the Cascade-2 bring-up and heat (2026-08-11).
 #
-# The never-benched star (docket 76) served as BF16 straight off the local
+# The never-benched star served as BF16 straight off the local
 # model shelf, no quant, on the house vLLM stack. The resident heavy
 # seat rests
 # for the window and is ALWAYS restored on exit, success or failure; the trap
