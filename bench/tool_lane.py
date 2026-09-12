@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The face bench TOOL LANE (born 2026-08-22, docket 60 finally answered).
+"""The face bench TOOL LANE (born 2026-08-22, the deferred tool lane).
 
 The standing instrument (face_v1) defers the tool lane: it talks to a raw
 llama.cpp /v1/chat/completions and has no tool executor, so it measures

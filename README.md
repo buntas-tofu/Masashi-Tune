@@ -25,6 +25,7 @@ A few operating laws recur, and stating them up front makes the rest read more p
 - `serve/` the serving lane: one launch script per model vessel, a thin wrapper setting neutral defaults and handing them to a real llama.cpp or vLLM binary. Ports, model paths, the binary, and any GPU pin are environment variables with documented defaults, so the same script runs on any box with the weights staged.
 - `method/` the method shelf: written lessons from building, keeping, and publicly releasing this fabric, de-identified and told in plain vocabulary. The fullest entry is how private work was swept for public release in waves and the gates it had to pass.
 - `scripts/` the bundled invariant linter, a faithful copy of the framework linter, plus anything that is a single self-contained tool rather than a package.
+- Root files: `AGENTS.md` holds the agent contract, `agent-manifest.json` and its schema carry the machine-readable summary, and `LICENSE` carries the MIT terms.
 
 The discipline across all of it is the same: one tool, one job, one self-test. Every deployment-specific value is a parameter with a documented default, never a hardcoded name or path. Numbers are reproducible from files in the tree, or they are not quoted.
 
@@ -59,12 +60,12 @@ In both cases the code in this repository is exercised and the wiring is documen
 What you need, depending on what you want to do:
 
 - Read only: nothing. The runbooks, method, and reports are plain markdown.
-- Run the self-tests and the linter: Python 3.11 or newer. The linter is standard library, no install; the harness needs its one declared dependency, `httpx` (`pip install httpx`, or install the package from `harness/`).
+- Run the self-tests and the linter: Python 3.11 or newer. The linter is standard library, no install; the harness needs its one declared dependency, `httpx` (`pip install httpx` is the lightest path; installing the package from `harness/` also fetches its build backend).
 - Run the ops gates: one Linux box, standard library, nothing else.
 - Run a model-backed bench: whatever serves an OpenAI-shaped endpoint, weights staged, and one GPU will do for a single model.
 - Stand up the full rig: the runbooks describe the hardware classes; read `node-onboarding.md` first.
 
-To start: clone the repository, run the harness self-tests, lint it with `scripts/inertia-drift-lint`, and read `runbooks/node-onboarding.md` if you intend to stand up the rig itself. The governance workflow in `.github` runs the same linter and validates `agent-manifest.json` against its schema on every push to main.
+To start: clone the repository, run the harness self-tests (`cd harness && python -m harness selftest`), lint it with `scripts/inertia-drift-lint`, and read `runbooks/node-onboarding.md` if you intend to stand up the rig itself. The governance workflow in `.github` runs the same linter, validates `agent-manifest.json` against its schema, and runs the harness self-tests, on every push to main.
 
 ## Working here
 
@@ -127,9 +128,7 @@ a compatibility affordance, not this project's naming.
 
 MIT, covering both code and documentation. See `LICENSE`.
 
-Copyright (c) 2026 Matthew Haubach.
-
-The copyright line carries the operator's legal name, because the license requires a copyright holder. The name is otherwise treated as private, and it is not used as an identity anywhere in the tree.
+The copyright line in `LICENSE` carries the operator's legal name, because the license requires a copyright holder. The name is otherwise treated as private, and it is not used as an identity anywhere else in the tree.
 
 ## Lineage
 

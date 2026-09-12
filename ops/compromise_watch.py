@@ -658,9 +658,9 @@ def git_remote_audit():
     """
     Every git remote on the box.
 
-    This is the surface that produced two real findings this month: census repos
-    on private GitHub, and a cards repo holding tax records with an external
-    remote. A remote is a data-egress path, so it belongs in the baseline.
+    This is the surface that produced two real findings this month: private
+    repositories with external remotes that nobody had noticed were there. A
+    remote is a data-egress path, so it belongs in the baseline.
     """
     rec = {"tier": 3, "tier_note": TIER_NOTES[3], "repos": []}
     roots = [Path(os.path.expandvars(os.path.expanduser(r)))

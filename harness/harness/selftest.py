@@ -97,3 +97,7 @@ def run() -> int:
     total = sum(1 for _ in _goldens())
     print(f"\nselftest: {total - failed}/{total} passed")
     return 1 if failed else 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(run())
