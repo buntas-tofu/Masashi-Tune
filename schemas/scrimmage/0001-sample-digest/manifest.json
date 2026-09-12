@@ -1,0 +1,67 @@
+{
+  "$schema": "../../schemas/scrimmage.schema.json",
+  "id": "0001-sample-digest",
+  "play": "digest-drop-box",
+  "title": "Digest the sample notes folder",
+  "created": "2026-04-25T11:00:00-04:00",
+  "status": "draft",
+  "input": {
+    "type": "directory",
+    "paths": [
+      "examples/sample-notes/"
+    ],
+    "read_only": true,
+    "snapshot_hash": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "roster": [
+    {
+      "agent": "archaeologist",
+      "role": "reader",
+      "role_brief": "Walk the sample notes folder chronologically. The folder holds a short version chain of one reference document plus a couple of dated meeting notes. Surface which file supersedes which and state your evidence for each ordering call. Halt on ambiguous lineage that is load-bearing for a recommendation."
+    },
+    {
+      "agent": "skeptic",
+      "role": "reader",
+      "role_brief": "Pressure-test the load-bearing claims in the sample notes. Tier-grade significant assertions per the four-tier evidence frame. Name thin-ice claims by name. Distinguish misfile, smuggle, and vague failure modes when calling them out."
+    },
+    {
+      "agent": "pragmatist",
+      "role": "reader",
+      "role_brief": "Walk the sample notes folder with the pragmatist lens: every significant finding gets pressed for action implication. Your read is the primary source for the digest's Recommendations section: ranked keep, archive, or act-on calls with a one-line rationale per item. You are the team's first local-backed member; treat the run as both a deliverable and as data about local-versus-hosted stance fidelity."
+    },
+    {
+      "agent": "simplifier",
+      "role": "synthesizer",
+      "role_brief": "Two-phase work. Phase 1: complete the simplifier read of the folder in parallel with the other readers. Output to output/reads/simplifier.md. Phase 2: read the parallel reads (yours included) and produce the integrated digest per the digest-drop-box play's output spec. Output to output/digest.md. Preserve disagreement where stances diverged; do not adjudicate. The pragmatist read is the primary source for the Recommendations section."
+    }
+  ],
+  "output": {
+    "branch": "scrimmage/0001-sample-digest",
+    "paths": [
+      "scrimmage/0001-sample-digest/output/digest.md",
+      "scrimmage/0001-sample-digest/output/reads/archaeologist.md",
+      "scrimmage/0001-sample-digest/output/reads/skeptic.md",
+      "scrimmage/0001-sample-digest/output/reads/pragmatist.md",
+      "scrimmage/0001-sample-digest/output/reads/simplifier.md"
+    ],
+    "artifact_types": [
+      "report",
+      "inventory",
+      "map"
+    ]
+  },
+  "review": {
+    "required": true,
+    "approval_state": "pending"
+  },
+  "log": {
+    "path": "log.md"
+  },
+  "tags": [
+    "founding-scrimmage",
+    "digest",
+    "sample-input",
+    "local-hosted-mix"
+  ],
+  "notes": "First scrimmage, written as a worked example with fully synthetic input. The input is a small folder of fictional documents: a short version chain of one reference document plus two dated meeting notes. The run is an end-to-end test of the parallel-then-synthesize protocol, and a first integration test of a local-backed agent (pragmatist) into a hosted-backing roster. Four-agent roster: archaeologist and skeptic as readers (a hosted large model), pragmatist as reader and primary recommender (a local model, multimodal, roughly 7.2GB on a local GPU), simplifier doubling as simplifier reader and synthesizer (a hosted small model). No real corpus is referenced; the example instance exists to show the manifest shape."
+}

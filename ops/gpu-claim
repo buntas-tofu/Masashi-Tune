@@ -1,0 +1,239 @@
+#!/usr/bin/env python3
+"""gpu-claim: claim a GPU back from the fabric, or hand it over.
+
+  gpu-claim                      the cards on this node and who holds them
+  gpu-claim claim 5090 -r "Elden Ring"
+  gpu-claim release 5090
+  gpu-claim wait 5090            block until the card reads clear
+
+Talks to this node's own keeper (the keeper) and nothing else, so it inherits
+the keeper's authority model whole: a card that lives on another machine is
+that machine's keeper's business, and this refuses rather than reaching.
+
+STDLIB ONLY, deliberately. It has to run from a Steam launch option, a cron
+line, a rescue shell, and a session where the service venv is mid-rebuild. A
+tool for taking the fabric apart cannot depend on the fabric being assembled.
+
+Keeper address: every seat and keeper binds its node's tailscale IP (the
+2026-07-17 unification, zero exceptions), so loopback REFUSES on the keeper's
+own box. That is the trap this resolves in order rather than assuming.
+
+Floor: no em dashes, no ellipses.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import shutil
+import subprocess
+import sys
+import time
+import urllib.error
+import urllib.request
+
+KEEPER_PORT = int(os.environ.get("KEEPER_PORT", "9000"))
+TIMEOUT_S = float(os.environ.get("CLAIM_TIMEOUT", "60"))
+
+
+def keeper_url() -> str:
+    """This node's keeper, resolved in order of how much we trust the source.
+
+    KEEPER_URL is the explicit override. KEEPER_HOST is what the keeper's own
+    drop-in sets, so it is right by construction where it is exported. The
+    tailscale CLI is the live answer. Loopback is last and will usually refuse,
+    which is a clearer failure than silently querying nothing.
+    """
+    host = os.environ.get("KEEPER_URL") or os.environ.get("KEEPER_HOST")
+    if not host and shutil.which("tailscale"):
+        try:
+            out = subprocess.run(["tailscale", "ip", "-4"], capture_output=True,
+                                 text=True, timeout=5)
+            if out.returncode == 0 and out.stdout.strip():
+                host = out.stdout.strip().splitlines()[0]
+        except (OSError, subprocess.SubprocessError):
+            pass
+    return f"http://{host or '127.0.0.1'}:{KEEPER_PORT}"
+
+
+def call(path: str, payload: dict | None = None, timeout: float = TIMEOUT_S):
+    url = f"{keeper_url()}{path}"
+    data = json.dumps(payload).encode() if payload is not None else None
+    req = urllib.request.Request(
+        url, data=data,
+        headers={"Content-Type": "application/json"} if data else {},
+        method="POST" if data else "GET",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return json.loads(r.read().decode()), None
+    except urllib.error.HTTPError as e:
+        body = e.read().decode(errors="replace")
+        try:
+            return json.loads(body).get("detail"), e.code
+        except json.JSONDecodeError:
+            return body.strip(), e.code
+    except (urllib.error.URLError, OSError) as e:
+        die(f"the keeper at {keeper_url()} did not answer: {e}\n"
+            f"       Is the keeper service up?  systemctl --user status keeper")
+
+
+def die(msg: str, code: int = 1) -> None:
+    print(f"gpu-claim: {msg}", file=sys.stderr)
+    raise SystemExit(code)
+
+
+def gib(mib) -> str:
+    return "  n/a  " if mib is None else f"{mib / 1024:6.1f}G"
+
+
+def cmd_status(args) -> int:
+    body, err = call("/posture")
+    if err:
+        die(f"{err}: {body}")
+    cards = body.get("cards", [])
+    if not cards:
+        print(f"{body.get('node')}: no declared cards. Nothing here is "
+              f"claimable, which on a unified-memory or single-card node is "
+              f"the correct answer and not a gap.")
+        return 0
+    print(f"{body.get('node')}")
+    for c in cards:
+        state = "CLAIMED" if c["claimed"] else "serving"
+        print(f"  {c['label']:10s} {gib(c['free_mib'])} free of "
+              f"{gib(c['total_mib'])}   {state}")
+        if c["claimed"]:
+            cl = c["claim"]
+            held = time.time() - cl["at"]
+            print(f"    held for {held / 60:.0f} min by {cl['by']}: {cl['reason']}")
+            if cl["rested"]:
+                print(f"    rested: {', '.join(cl['rested'])}")
+        for s in c["seats"]:
+            mark = "staged" if s["staged"] else ("lazy" if s["lazy"] else "resident")
+            print(f"    - {s['name']:22s} {mark}")
+    return 0
+
+
+def cmd_claim(args) -> int:
+    body, err = call("/posture", {
+        "card": args.card, "action": "claim",
+        "reason": args.reason, "by": args.by,
+    })
+    if err == 409 and isinstance(body, dict):
+        # The card is recorded as claimed either way; this is the incomplete
+        # drain, and the stragglers are the whole point of printing it.
+        print(f"gpu-claim: {body.get('message')}", file=sys.stderr)
+        for s in body.get("stragglers", []):
+            print(f"  still holding: pid {s['pid']} {s['used_mib']}MiB "
+                  f"{s['process']}", file=sys.stderr)
+        for f in body.get("failures", []):
+            print(f"  would not stop: {f['seat']} ({f.get('error')})",
+                  file=sys.stderr)
+        return 2
+    if err:
+        die(f"{err}: {body}")
+    if body.get("already"):
+        cl = body["claim"]
+        print(f"{args.card} was already claimed by {cl['by']}: {cl['reason']}")
+        return 0
+    rec = body.get("recovered_mib")
+    print(f"{body['label']} is yours. "
+          f"{gib(body['free_mib_after']).strip()} free"
+          + (f", {rec / 1024:.1f}G recovered" if rec else ""))
+    if body["claim"]["rested"]:
+        print(f"  rested: {', '.join(body['claim']['rested'])}")
+    return 0
+
+
+def cmd_release(args) -> int:
+    body, err = call("/posture", {"card": args.card, "action": "release"})
+    if err == 409 and isinstance(body, dict):
+        print(f"gpu-claim: {body.get('message')}", file=sys.stderr)
+        for f in body.get("failures", []):
+            print(f"  did not come back: {f['seat']} ({f.get('error')})",
+                  file=sys.stderr)
+        return 2
+    if err:
+        die(f"{err}: {body}")
+    if not body.get("held"):
+        print(f"{args.card} was not claimed. Nothing to give back.")
+        return 0
+    print(f"{body['label']} is back on the fabric after "
+          f"{body['held_for_s'] / 60:.0f} min ({body['reason']}).")
+    if body["restored"]:
+        print(f"  restored: {', '.join(body['restored'])}")
+    return 0
+
+
+def find_card(body: dict, want: str) -> dict:
+    """One card out of the keeper's list, by key or label, or die trying."""
+    want = want.lower()
+    hits = [c for c in body.get("cards", [])
+            if want in (c["key"].lower(), c["label"].lower())
+            or want in c["label"].lower()]
+    if not hits:
+        die(f"no card {want!r} on {body.get('node')}; known: "
+            f"{[c['key'] for c in body.get('cards', [])]}")
+    if len(hits) > 1:
+        die(f"card {want!r} is ambiguous: {[c['key'] for c in hits]}")
+    return hits[0]
+
+
+def cmd_wait(args) -> int:
+    """Block until a card has at least [--min-free] GiB actually free.
+
+    Claim already drains before it returns, so this is not for the claim path.
+    It is for the case where a launcher wants to assert the state it needs
+    rather than trust that some earlier step produced it, and for watching a
+    card come back after a release. The measure is free memory off the driver,
+    never the claim record, because the claim record is bookkeeping and the
+    driver is the fact.
+    """
+    deadline = time.monotonic() + args.timeout
+    while True:
+        body, err = call("/posture")
+        if err:
+            die(f"{err}: {body}")
+        card = find_card(body, args.card)
+        free_gib = (card["free_mib"] or 0) / 1024
+        if free_gib >= args.min_free:
+            print(f"{card['label']}: {free_gib:.1f}G free")
+            return 0
+        if time.monotonic() >= deadline:
+            die(f"{card['label']} reached only {free_gib:.1f}G free of the "
+                f"{args.min_free:.1f}G asked for, within {args.timeout:.0f}s", 2)
+        time.sleep(1.0)
+
+
+def main() -> int:
+    p = argparse.ArgumentParser(
+        prog="gpu-claim",
+        description="Claim a GPU back from the fabric, or hand it over.")
+    sub = p.add_subparsers(dest="cmd")
+
+    s = sub.add_parser("claim", help="take a card back from the fabric")
+    s.add_argument("card", help="card key or label (gpu0, 0)")
+    s.add_argument("-r", "--reason", default="", help="what the card is for")
+    s.add_argument("--by", default="operator", help="who is asking")
+    s.set_defaults(fn=cmd_claim)
+
+    s = sub.add_parser("release", help="give a card back to the fabric")
+    s.add_argument("card")
+    s.set_defaults(fn=cmd_release)
+
+    s = sub.add_parser("status", help="cards on this node and who holds them")
+    s.set_defaults(fn=cmd_status)
+
+    s = sub.add_parser("wait", help="block until a card has room")
+    s.add_argument("card")
+    s.add_argument("--min-free", type=float, default=24.0,
+                   help="GiB that must be free (default 24)")
+    s.add_argument("--timeout", type=float, default=60.0)
+    s.set_defaults(fn=cmd_wait)
+
+    args = p.parse_args()
+    return args.fn(args) if args.cmd else cmd_status(args)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -1,0 +1,48 @@
+# The zoo disposition ledger: what every unbound artifact is for, and until
+# when. An EXAMPLE ledger. Replace the entries with your own.
+#
+# Division of truth, deliberate:
+#   the roster            governs every artifact bound to a seat
+#   watchlist.toml        governs upstream identity (which repo)
+#   THIS FILE             governs disposition for artifacts NOT bound to any
+#                         seat, plus extra copies of seated artifacts
+# A seated artifact's serving copy never appears here; two files claiming one
+# truth is drift.
+#
+# Tags, exactly five:
+#   active            in production use without a seat binding
+#   on-call           purpose-known specialist or spare copy, summonable, undated
+#   staged-for-bench  waiting on a named bench; CARRIES review_by, and a past-due
+#                     review_by is a finding (ledger_check.py reports it)
+#   archival          kept by the wide-aperture doctrine, no active pointer
+#   dropped           ruled off the deployment; entry kept for provenance
+#
+# review_by is a staleness alarm, not a deadline: it asks "is this still waiting
+# on purpose". Entry keys are directory basenames; a `--suffix` disambiguates
+# copies of one artifact. Choosing to act on any line is a Tier 1 ruling.
+
+[meta]
+authored = 2026-01-01
+revised = 2026-01-01
+authority = "operator ruling"
+checker = "ledger_check.py"
+
+[artifact."example-spare-copy"]
+location = "node-a:/srv/models/example-8b"
+size = "9G"
+tag = "on-call"
+note = "A spare copy of a seated model, summonable and undated."
+
+[artifact."example-staged-quant"]
+location = "node-b:/srv/models/example-70b-q4"
+size = "40G"
+tag = "staged-for-bench"
+review_by = 2027-01-01
+heat = "example bench"
+note = "Waiting on a named bench run; a past-due review_by is the finding."
+
+[artifact."example-dropped-bf16"]
+location = "node-b:/srv/models/_dropped"
+size = "49G"
+tag = "dropped"
+note = "The wrong artifact for the available cards. Entry kept for provenance."

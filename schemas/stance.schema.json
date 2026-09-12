@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "stance.schema.json",
+  "title": "Stance",
+  "description": "Schema for the YAML frontmatter of a stance catalog entry. Validates stances/<name>.md frontmatter; the markdown body holds the stance ethos and is composed into the system prompt at runtime, before agent-specific persona text.",
+  "type": "object",
+  "required": ["name", "description", "applies_to", "compatibility", "created"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "JSON Schema self-reference pointer. Optional in frontmatter."
+    },
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*[a-z0-9]$",
+      "minLength": 2,
+      "maxLength": 32,
+      "description": "Kebab-case unique identifier. Must match the filename stem of stances/<name>.md."
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 240,
+      "description": "One-line description of the lens this stance applies. Read as: 'an agent in this stance looks at things by ___'."
+    },
+    "applies_to": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "enum": ["any", "code", "research", "documents", "policy", "data", "design", "writing"]
+      },
+      "uniqueItems": true,
+      "description": "Subject classes this stance can productively engage with. 'any' is acceptable when the stance is genuinely subject-agnostic."
+    },
+    "compatibility": {
+      "type": "object",
+      "description": "How this stance composes with others on the same play.",
+      "required": ["conflicts_with", "pairs_well_with"],
+      "additionalProperties": false,
+      "properties": {
+        "conflicts_with": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*[a-z0-9]$"
+          },
+          "uniqueItems": true,
+          "description": "Stances that produce noise rather than signal when paired (e.g., two skeptics on the same problem). The orchestrator should warn or refuse when these co-occur in a scrimmage roster.",
+          "default": []
+        },
+        "pairs_well_with": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*[a-z0-9]$"
+          },
+          "uniqueItems": true,
+          "description": "Stances with documented productive synergy.",
+          "default": []
+        }
+      }
+    },
+    "default_probes": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Questions this stance asks by default. Used by plays that don't specify probes explicitly. The agent body in roster files may extend or refine these.",
+      "default": []
+    },
+    "default_temperature": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 2,
+      "description": "Recommended sampling temperature for agents in this stance. Specific agent files may override.",
+      "default": 0.7
+    },
+    "created": {
+      "type": "string",
+      "format": "date",
+      "description": "Date the stance was first declared (YYYY-MM-DD)."
+    },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": []
+    }
+  }
+}

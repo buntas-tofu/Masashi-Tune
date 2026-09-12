@@ -1,0 +1,4 @@
+# Run tapes regenerate; never commit them.
+face_bench_*.jsonl
+math_bench_*.jsonl
+*.log

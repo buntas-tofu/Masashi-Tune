@@ -1,0 +1,155 @@
+#!/usr/bin/env bash
+# gpu-game: run a game with the card to itself, and give it back after.
+#
+# Paste into a game's Steam launch options, keeping the placeholder:
+#
+#     /path/to/gpu-game %command%
+#
+# Steam replaces %command% with the game's real command line, so this claims
+# the card, runs the game, and releases the card when the game exits. Works the
+# same from a shell:  gpu-game -- ./somegame
+#
+# WHY NOT exec. The obvious shape here is `claim && exec "$@"`, and it is
+# wrong: exec replaces this shell, so the EXIT trap never fires and the card
+# stays claimed until the operator notices the fabric is missing. The game runs
+# as a child and this waits on it, which costs one idle shell and buys the
+# guarantee that the release happens on a clean exit, a crash, a SIGTERM from
+# Steam's stop button, and a kill from the Steam overlay.
+#
+# WHY IT REFUSES ON A FAILED CLAIM. A game launching into 9 GiB when the
+# operator expected 32 is the exact unmanageable case this whole lane exists to
+# retire, and it presents as unexplained stutter twenty minutes in rather than
+# as an error. A launch that does not happen is a signal you can read. Override
+# with GAME_FORCE=1 when you want the game more than you want the memory.
+#
+# Floor: no em dashes, no ellipses.
+set -uo pipefail
+
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+POSTURE="${GPU_CLAIM:-$HERE/gpu-claim}"
+CARD="${GAME_CARD:-5090}"
+REASON="${GAME_REASON:-}"
+
+# Drop a leading -- so `gpu-game -- ./game` and the bare Steam form both work.
+[ "${1:-}" = "--" ] && shift
+
+if [ "$#" -eq 0 ]; then
+    cat >&2 <<'USAGE'
+gpu-game: run a game with the card to itself, and give it back after.
+
+  Steam launch options:  /path/to/gpu-game %command%
+  Shell:                 gpu-game -- ./somegame --flags
+
+  GAME_CARD    which card to claim (default: 5090)
+  GAME_REASON  what to record in the claim (default: the game's name)
+  GAME_FORCE=1 launch even if the claim fails
+  GAME_QUIET=1 no desktop toasts on the happy path (failures still toast)
+USAGE
+    exit 64
+fi
+
+# Name the claim after the executable when the caller did not say. A claim that
+# reads "Elden Ring" beats one that reads "gaming" three hours later when the
+# operator is looking at a board wondering who took the 5090.
+if [ -z "$REASON" ]; then
+    REASON="$(basename -- "${1%% *}")"
+fi
+
+note() { printf 'gpu-game: %s\n' "$1" >&2; }
+
+# Desktop notice as well as stderr: a Steam launch option's stderr goes into a
+# log nobody reads at the moment it matters.
+#
+# GAME_QUIET=1 silences the routine claim and release toasts. It does NOT
+# silence the critical ones, and that asymmetry is the point: a failed release
+# means the seats are still rested and the fabric is quietly missing its face
+# until somebody notices. That is worth interrupting for even when the happy
+# path is not.
+toast() {
+    local urgency="${2:-normal}"
+    [ "${GAME_QUIET:-0}" = "1" ] && [ "$urgency" != "critical" ] && return 0
+    command -v notify-send >/dev/null 2>&1 && \
+        notify-send -a "Fabric" -u "$urgency" "Fabric" "$1" >/dev/null 2>&1
+    return 0
+}
+
+released=0
+release() {
+    [ "$released" -eq 1 ] && return 0
+    released=1
+    note "releasing $CARD"
+    if "$POSTURE" release "$CARD" >&2; then
+        toast "$CARD is back on the fabric."
+    else
+        note "RELEASE FAILED. The card is still claimed and the seats are"
+        note "still rested. Give it back by hand:"
+        note "    $POSTURE release $CARD"
+        toast "$CARD release FAILED, seats still rested." critical
+    fi
+}
+
+# EXIT covers the normal paths. INT and TERM are forwarded to the game first so
+# it can shut down on its own terms, and the EXIT trap then does the release
+# exactly once (the released guard makes the double path harmless).
+child=0
+forward() {
+    [ "$child" -ne 0 ] && kill -"$1" "$child" 2>/dev/null
+    return 0
+}
+trap 'release' EXIT
+trap 'forward INT' INT
+trap 'forward TERM' TERM
+
+note "claiming $CARD for: $REASON"
+if ! "$POSTURE" claim "$CARD" --reason "$REASON" --by gpu-game >&2; then
+    if [ "${GAME_FORCE:-0}" = "1" ]; then
+        note "claim failed; GAME_FORCE is set, launching anyway."
+        toast "Claim on $CARD failed. Launching without it." critical
+    else
+        note "claim failed, so the game is NOT being launched. The card would"
+        note "not have had the memory you expected, which reads as stutter"
+        note "rather than as an error. Set GAME_FORCE=1 to override."
+        toast "Claim on $CARD failed. Game not launched." critical
+        # The EXIT trap still runs: an incomplete claim records itself so the
+        # rested seats are not stranded, and release is what un-strands them.
+        exit 70
+    fi
+fi
+
+toast "$CARD is yours. Have fun."
+
+"$@" &
+child=$!
+wait "$child"
+status=$?
+
+# Do NOT release yet. A trapped signal INTERRUPTS wait: bash returns 128+N the
+# instant the handler runs, while the game is still tearing down and still
+# holding the card. Releasing there restarts 20 GiB of seats into memory the
+# game has not given back, which is the exact collision this whole tool exists
+# to prevent, arriving through the back door on every use of Steam's stop
+# button. Caught on the first TERM-path test, 2026-08-09.
+#
+# So: after wait returns, keep looking until the process is genuinely gone.
+# Only tracks the direct child, which is the same thing Steam tracks; a
+# launcher that forks and exits will still race, and the bound below is what
+# keeps that from hanging the release forever.
+if kill -0 "$child" 2>/dev/null; then
+    note "waiting for the game to finish letting go of $CARD"
+    waited=0
+    while kill -0 "$child" 2>/dev/null; do
+        if [ "$waited" -ge 60 ]; then
+            note "the game is still running after 60s; releasing anyway."
+            note "If the card is contended, stop the game and re-run:"
+            note "    $POSTURE release $CARD"
+            break
+        fi
+        sleep 1
+        waited=$((waited + 1))
+    done
+fi
+
+# The EXIT trap does the release from here. 128+N is the shell's encoding of
+# "killed by signal N"; pass it through rather than flattening every signal
+# death to a generic failure.
+exit "$status"

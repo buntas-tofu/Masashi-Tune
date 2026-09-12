@@ -1,0 +1,30 @@
+# The model watchlist: which upstream repos this deployment cares about, and
+# how it knows.
+#
+# This file records upstream IDENTITY (which repository a local copy came from),
+# which is separate from any local serving name. Every entry must be CONFIRMED,
+# not guessed, because a wrong repo id here would silently watch the wrong
+# thing forever. State the confirmation method on each entry:
+#
+#   commit match    the repo's current sha equals the commit recorded beside
+#                   your own files at download time
+#   revision match  your recorded commit resolves at that repo, which proves
+#                   the file came from there even though upstream has moved
+#   pull queue      pull-zoo.sh maps the repo to this exact destination
+#                   directory in its own queue, and the repo resolves
+#
+# Add an entry by running `zoo_drift.py --discover`, or by hand with its
+# confirmation method stated. The entries below are examples: replace the repo,
+# path, and note with your own. Paths are placeholders for this deployment.
+
+[model."example-8b-instruct-gguf"]
+repo = "example-org/Example-8B-Instruct-GGUF"   # commit match
+path = "/srv/models/example-8b-instruct-gguf"
+note = """An example entry. Point repo at an upstream repository, path at the
+local directory holding your copy, and note at whatever a future reader needs
+to know about the pairing."""
+
+[model."example-embed-300m"]
+repo = "example-org/Example-Embed-300M"         # pull queue
+path = "/srv/models/example-embed-300m"
+note = "A second example, pulled through the pull-zoo.sh queue."

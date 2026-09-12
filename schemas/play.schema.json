@@ -1,0 +1,152 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "play.schema.json",
+  "title": "Play",
+  "description": "Schema for the YAML frontmatter of a reusable scrimmage definition. Validates playbook/<name>.md frontmatter; the markdown body holds the play's protocol description, role definitions, and any prompts beyond the stance defaults.",
+  "type": "object",
+  "required": ["name", "description", "input_type", "output_type", "roster_requirements", "protocol", "review", "created"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "JSON Schema self-reference pointer. Optional in frontmatter."
+    },
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*[a-z0-9]$",
+      "minLength": 2,
+      "maxLength": 64,
+      "description": "Kebab-case unique identifier. Must match the filename stem of playbook/<name>.md."
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 480,
+      "description": "Two-to-three sentence description. What does this play do? When should it be used?"
+    },
+    "input_type": {
+      "type": "string",
+      "enum": ["directory", "pull_request", "document", "url", "ad-hoc"],
+      "description": "What kind of input the play takes."
+    },
+    "output_type": {
+      "type": "string",
+      "enum": ["pr", "report", "decision_brief", "patch", "commentary"],
+      "description": "What the play produces. 'pr' = git PR with files. 'report' = a single markdown deliverable. 'decision_brief' = a structured doc with options and a recommendation. 'patch' = a code change. 'commentary' = unstructured agent reactions."
+    },
+    "roster_requirements": {
+      "type": "object",
+      "description": "Constraints on the roster a scrimmage must assemble to run this play.",
+      "required": ["min_agents"],
+      "additionalProperties": false,
+      "properties": {
+        "min_agents": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Minimum number of agents required."
+        },
+        "max_agents": {
+          "type": ["integer", "null"],
+          "minimum": 1,
+          "description": "Maximum number of agents (null = no limit). Stance value erodes past 5-6.",
+          "default": null
+        },
+        "required_stances": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*[a-z0-9]$"
+          },
+          "uniqueItems": true,
+          "description": "Stances that MUST be represented on the roster.",
+          "default": []
+        },
+        "recommended_stances": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*[a-z0-9]$"
+          },
+          "uniqueItems": true,
+          "description": "Stances that improve play quality but are not required.",
+          "default": []
+        }
+      }
+    },
+    "protocol": {
+      "type": "object",
+      "description": "How the agents interact during the scrimmage.",
+      "required": ["type"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["parallel", "parallel-then-synthesize", "sequential", "debate", "round-robin"],
+          "description": "parallel = each agent works independently, no interaction. parallel-then-synthesize = parallel reads then a synthesis pass. sequential = each agent reads the prior agent's output. debate = agents react to each other in turn. round-robin = same as debate but bounded turn count."
+        },
+        "synthesis_role": {
+          "type": "string",
+          "enum": ["designated", "rotating", "external", "none"],
+          "description": "Who synthesizes (only meaningful when protocol involves synthesis). 'designated' = a specific agent assigned in the scrimmage manifest. 'rotating' = different agent per scrimmage. 'external' = the principal does the synthesis. 'none' = no synthesis (parallel reads ship as-is).",
+          "default": "none"
+        },
+        "max_rounds": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "For debate / round-robin protocols, how many turns each agent gets."
+        },
+        "halt_on_consensus": {
+          "type": "boolean",
+          "description": "For debate, whether to stop when agents converge. Often false: the divergence is the value.",
+          "default": false
+        }
+      }
+    },
+    "review": {
+      "type": "object",
+      "description": "How outputs are reviewed before merge.",
+      "required": ["required", "mechanism"],
+      "additionalProperties": false,
+      "properties": {
+        "required": {
+          "type": "boolean",
+          "description": "Whether review is mandatory. Default true; only false for low-stakes drills."
+        },
+        "mechanism": {
+          "type": "string",
+          "enum": ["pr", "explicit-approval", "none"],
+          "description": "pr = GitHub pull request. explicit-approval = principal confirms in conversation or by file write. none = no review (drills only)."
+        },
+        "reviewer": {
+          "type": "string",
+          "description": "Default reviewer. Specific scrimmages may override.",
+          "default": "maintainer"
+        }
+      }
+    },
+    "default_compute": {
+      "type": "object",
+      "description": "Compute envelope this play prefers. Used to filter candidate agents for the roster.",
+      "additionalProperties": false,
+      "properties": {
+        "device": {
+          "type": "string",
+          "enum": ["local-gpu", "local-workstation", "local-mobile", "any", "api"]
+        },
+        "tier": {
+          "type": "string",
+          "enum": ["api", "gpu", "cpu", "any"]
+        }
+      }
+    },
+    "created": {
+      "type": "string",
+      "format": "date"
+    },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": []
+    }
+  }
+}

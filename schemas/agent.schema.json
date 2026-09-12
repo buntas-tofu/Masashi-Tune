@@ -1,0 +1,142 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "agent.schema.json",
+  "title": "Roster Agent",
+  "description": "Schema for the YAML frontmatter of a roster member identity file. Validates roster/<name>.md frontmatter; the markdown body holds agent-specific persona text and is appended to the system prompt at runtime.",
+  "type": "object",
+  "required": ["name", "stance", "backing", "compute", "status", "created"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "JSON Schema self-reference pointer. Optional in frontmatter."
+    },
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*[a-z0-9]$",
+      "minLength": 2,
+      "maxLength": 64,
+      "description": "Kebab-case unique identifier. Must match the filename stem of roster/<name>.md."
+    },
+    "stance": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*[a-z0-9]$",
+      "description": "Reference to a stance defined in stances/<stance>.md. Single primary stance per agent."
+    },
+    "secondary_stances": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]*[a-z0-9]$"
+      },
+      "description": "Optional secondary stances. Use sparingly; the value of stance specialization erodes when an agent claims too many.",
+      "default": []
+    },
+    "backing": {
+      "type": "object",
+      "description": "Backing model declaration. What runs the agent at inference time.",
+      "required": ["type", "model"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["hosted", "cli", "local"],
+          "description": "hosted = a remote model API. cli = inside a command-line agent session that acts as the orchestrator. local = a local runtime such as Ollama, llama.cpp, or vLLM."
+        },
+        "model": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Model identifier. Examples: '<provider>/<model>' for a hosted model, 'local/<model>' for a local runtime."
+        },
+        "reasoning_effort": {
+          "type": "string",
+          "enum": ["minimal", "low", "medium", "high", "max"],
+          "description": "For models that expose effort tuning. Otherwise ignored.",
+          "default": "medium"
+        },
+        "context_size": {
+          "type": "integer",
+          "minimum": 1024,
+          "description": "Effective context window in tokens. Local models often have smaller windows than the model card claims under quantization."
+        },
+        "temperature": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 2,
+          "description": "Sampling temperature. Stance-typed agents typically run lower temperature for consistency.",
+          "default": 0.7
+        }
+      }
+    },
+    "compute": {
+      "type": "object",
+      "description": "Where this agent runs. Declared so plays can match agents to available hardware.",
+      "required": ["device", "tier"],
+      "additionalProperties": false,
+      "properties": {
+        "device": {
+          "type": "string",
+          "enum": ["local-gpu", "local-workstation", "local-mobile", "any", "api"],
+          "description": "Named device or 'any' (portable across the principal's hardware) or 'api' (no local compute, remote API only)."
+        },
+        "tier": {
+          "type": "string",
+          "enum": ["api", "gpu", "cpu"],
+          "description": "Compute class. api = remote API. gpu = local GPU acceleration required. cpu = will run on CPU (slow for large local models)."
+        },
+        "vram_gb": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Minimum VRAM required for local GPU agents. Set the floor for the smallest local GPU in the deployment."
+        }
+      }
+    },
+    "memory": {
+      "type": "object",
+      "description": "Persistent memory configuration. Optional. Without this block, the agent runs ephemeral.",
+      "required": ["type"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["persistent", "ephemeral"]
+        },
+        "path": {
+          "type": "string",
+          "description": "Relative path to memory file. Convention: roster/<name>.memory.md."
+        },
+        "retention_policy": {
+          "type": "string",
+          "enum": ["all", "scrimmage-summaries-only", "manual"],
+          "description": "What gets written to memory. 'all' is rare and usually wrong; 'scrimmage-summaries-only' is the default sane choice; 'manual' means the agent decides per write.",
+          "default": "scrimmage-summaries-only"
+        }
+      }
+    },
+    "status": {
+      "type": "string",
+      "enum": ["active", "inactive", "draft"],
+      "description": "active = available for scrimmages. inactive = on the bench. draft = identity not yet finalized, do not assign to scrimmages."
+    },
+    "created": {
+      "type": "string",
+      "format": "date",
+      "description": "Date the agent identity was first declared (YYYY-MM-DD)."
+    },
+    "last_active": {
+      "type": "string",
+      "format": "date",
+      "description": "Date of most recent scrimmage participation. Updated by the orchestrator."
+    },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Free-form tags for grouping and filtering.",
+      "default": []
+    },
+    "notes": {
+      "type": "string",
+      "description": "Optional free-form note about this agent."
+    }
+  }
+}

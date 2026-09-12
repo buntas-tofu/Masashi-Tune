@@ -1,0 +1,20 @@
+{
+ "version": "dictionary_sample_v2",
+ "built": "2026-09-12T00:00:00",
+ "note": "Synthetic pages authored for the public tree. No real vendor or document is represented.",
+ "digest": "67dfcac9a7c30eb9c02a58aee4cb2c71ae5bf911cff191a7fade47f7645370ec",
+ "records": [
+  {
+   "id": "doc-01",
+   "text": "The registry describes fields it holds: full name, mailing address, phone number, parcel identifier, and assessed value. It also states a last-updated date. Marketing copy and product names are not fields."
+  },
+  {
+   "id": "doc-02",
+   "text": "This page lists household attributes: number of occupants, year built, and heating type. It names no person-level fields and includes a disclaimer."
+  },
+  {
+   "id": "doc-03",
+   "text": "Overview, pricing, and support contacts only. The page names no data fields at all."
+  }
+ ]
+}

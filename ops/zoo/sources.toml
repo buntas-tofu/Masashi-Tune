@@ -1,0 +1,71 @@
+# Where to listen for what the field already knows about a model you run.
+#
+# Companion to watchlist.toml. That file answers "which upstream repo is this",
+# which is identity. This one answers "where would a problem with it be
+# discussed", which is a different question with a different answer; the gap
+# between them is the point, because most failures are serving-stack failures
+# rather than weight failures.
+#
+# SIGNAL TIERS. Signal falls off sharply the further you get from a
+# developer-oriented forum:
+#   tier 1  the serving stack's issue tracker. Highest signal by a wide margin.
+#   tier 2  community quant maintainers upstream. Their users file operational
+#           bugs, so their discussion tabs carry real warnings.
+#   tier 3  first-party model repos. Near zero on discussion, kept because the
+#           commit history there is authoritative.
+#
+# Anything below tier 3 is deliberately absent. Doc sites are probed for
+# /llms-full.txt and /llms.txt first and are simply SKIPPED when neither
+# exists. Do not scrape around anti-agent gating.
+
+[defaults]
+# Terms that mark an issue as relevant to how these models actually run. Draw
+# them from failures this deployment has actually paid for, not imagined ones.
+concern_terms = [
+    "template", "chat template", "reasoning", "think", "max_tokens", "truncat",
+    "garbled", "incoherent", "gibberish", "empty", "parse", "json",
+    "assert", "crash", "segfault", "nan", "regression",
+    "vocab", "tokenizer", "temperature", "sampler",
+    "context", "n_ctx", "slot", "batch", "moe", "n_expert",
+    "cuda", "vram", "oom", "quant",
+]
+
+# --- Serving stacks. Tier 1, shared by every model run on them. ---
+
+[stack.llamacpp]
+tier = 1
+github = "ggml-org/llama.cpp"
+note = "The inference stack the small seats run through. A bug here reaches most of the deployment at once."
+
+[stack.vllm]
+tier = 1
+github = "vllm-project/vllm"
+note = "The inference stack for the larger seats on the accelerator nodes."
+
+[stack.rocm]
+tier = 1
+github = "ROCm/ROCm"
+note = "The vendor tracker for AMD accelerator nodes where the wheels come from the vendor repository rather than pypi."
+
+# --- Models: examples. Replace with your own keys and terms. ---
+
+[model."example-8b-instruct-gguf"]
+stacks = ["llamacpp"]
+github_terms = ["gguf", "chat template"]
+hf_tier = 3
+docs = "https://example.invalid/docs"
+
+[model."example-embed-300m"]
+stacks = ["llamacpp"]
+github_terms = ["embedding"]
+hf_tier = 3
+
+# --- Hardware: examples, one per accelerator class this deployment runs. ---
+
+[hardware.example-accelerator]
+label = "Example accelerator class"
+nodes = ["node-a"]
+stacks = ["vllm"]
+terms = ["example", "sm-example"]
+note = """An example hardware target: an accelerator family whose open issues
+matter here because a regression against it reaches more than one seat."""

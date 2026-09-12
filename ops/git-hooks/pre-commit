@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+# Generic pre-commit checks for this repository.
+#
+# Doctrine: configuration is versioned alongside the test that pins it, so a
+# deliberate config change and its golden test land in the same edit. This hook
+# enforces that pairing, and runs the framework linter when one is vendored.
+# Estate-specific paths are not baked in; every path below is a parameter with
+# a documented default, overridable by environment variable.
+#
+# Escape hatch for genuinely spec-neutral edits (comment typos):
+#   git commit --no-verify
+#
+# Install (once per clone that commits):
+#   ln -sf ../../ops/git-hooks/pre-commit .git/hooks/pre-commit
+set -euo pipefail
+
+ROOT="$(git rev-parse --show-toplevel)"
+STAGED="$(git diff --cached --name-only)"
+
+# Parameters. PRECOMMIT_CONFIG_DIR is the config directory whose edits must
+# carry their golden test; PRECOMMIT_GOLDEN is that test's path.
+CONFIG_DIR="${PRECOMMIT_CONFIG_DIR:-config}"
+CONFIG_GLOB="${PRECOMMIT_CONFIG_GLOB:-\.toml$}"
+GOLDEN="${PRECOMMIT_GOLDEN:-tests/test_config_golden.py}"
+LINT="${PRECOMMIT_LINT:-$ROOT/scripts/inertia-drift-lint}"
+
+PY="$ROOT/.venv/bin/python"
+[ -x "$PY" ] || PY="$(command -v python3)"
+
+rc=0
+
+# Check 1. The invariant linter, when it is vendored, runs over the tree. A red
+# linter blocks: the mechanical rules are its job, not the author's memory.
+if [ -x "$LINT" ]; then
+    if ! "$LINT" "$ROOT" >/dev/null 2>&1; then
+        echo "pre-commit: BLOCKED. The invariant linter reported violations."
+        echo "Run it directly for the detail: $LINT $ROOT"
+        rc=1
+    fi
+fi
+
+# Check 2. A config change and its golden test must land in the same edit.
+if echo "$STAGED" | grep -qE "^${CONFIG_DIR}/.*${CONFIG_GLOB}"; then
+    echo "pre-commit: config staged; checking the golden test."
+    if [ -f "$ROOT/$GOLDEN" ] && ! "$PY" "$ROOT/$GOLDEN" >/dev/null 2>&1; then
+        echo "pre-commit: BLOCKED. The golden test is RED on the working tree."
+        echo "The config no longer mirrors the pinned shape. Fix the config or"
+        echo "the golden before committing. (Doctrine: same-edit.)"
+        rc=1
+    fi
+    if ! echo "$STAGED" | grep -qF "$GOLDEN"; then
+        echo "pre-commit: BLOCKED. A config file is staged without $GOLDEN in"
+        echo "the same edit. The golden is the spec; stage it too, or bypass"
+        echo "deliberately with --no-verify if this edit is spec-neutral."
+        rc=1
+    fi
+fi
+
+if [ "$rc" -ne 0 ]; then
+    exit 1
+fi
+echo "pre-commit: checks green."
+exit 0

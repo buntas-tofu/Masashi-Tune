@@ -1,0 +1,100 @@
+#!/usr/bin/env bash
+# heat-run: run one campaign step and capture it whole.
+#
+# WHY THIS EXISTS, 2026-08-12. The operator's ruling opening the August heat was
+# "no skimping on the notes, we will distill after we have ran our course, and
+# not before." A rule like that fails on friction, not on intent: at hour sixty
+# of a week-long run, the note that does not write itself is the note that does
+# not get written, and the one that gets skipped is always the boring one that
+# turns out to matter. So capture is structural here rather than disciplinary.
+#
+# It wraps a command, records the conditions around it, streams the full output
+# to a durable raw artifact, and appends one index line to the campaign log. It
+# never interprets. Distillation happens after the course is run.
+#
+# Raw lands under HEAT_ROOT/<date>/ so a week of build logs stays out of the
+# repo and on durable storage rather than scratch. The campaign log points at it.
+#
+# Usage:
+#   heat-run --lane build --node node-a -- ssh node-a 'make check'
+#   heat-run --lane bench --node node-b --note "hardened build" -- ./bench.sh
+#
+# Exit code is the wrapped command's own, so heat-run composes inside scripts
+# and a failure stays a failure.
+set -uo pipefail
+
+LANE=""; NODE="$(hostname)"; NOTE=""
+LOG="${CAMPAIGN_LOG:-$(cd "$(dirname "$0")" && pwd)/campaign.log}"
+ROOT="${HEAT_ROOT:-$HOME/heat-runs}"
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --lane) LANE="$2"; shift 2 ;;
+        --node) NODE="$2"; shift 2 ;;
+        --note) NOTE="$2"; shift 2 ;;
+        --) shift; break ;;
+        *) echo "heat-run: unknown option $1" >&2; exit 2 ;;
+    esac
+done
+
+if [[ $# -eq 0 ]]; then
+    echo "heat-run: nothing to run (did you forget --?)" >&2
+    exit 2
+fi
+[[ -n "$LANE" ]] || { echo "heat-run: --lane is required" >&2; exit 2; }
+
+DAY="$(date '+%Y-%m-%d')"
+STAMP="$(date '+%Y%m%dT%H%M%S')"
+DIR="$ROOT/$DAY"
+mkdir -p "$DIR"
+BASE="$DIR/${STAMP}_${LANE}_${NODE}"
+RAW="$BASE.log"
+META="$BASE.meta"
+
+# The conditions travel with the result. A number without them is an anecdote.
+{
+    echo "lane: $LANE"
+    echo "node: $NODE"
+    echo "note: $NOTE"
+    echo "argv: $*"
+    echo "cwd: $(pwd)"
+    echo "invoked_from: $(hostname)"
+    echo "user: $(id -un)"
+    echo "started: $(date '+%F %T %Z')"
+} > "$META"
+
+echo "heat-run: $LANE on $NODE, raw at $RAW" >&2
+
+START=$(date +%s)
+# Output goes to the operator's terminal AND the raw file, unbuffered enough to
+# survive a kill: a run that dies at hour six still leaves everything up to the
+# moment it died, which is exactly the part worth reading.
+"$@" 2>&1 | tee "$RAW"
+RC=${PIPESTATUS[0]}
+END=$(date +%s)
+ELAPSED=$((END - START))
+
+{
+    echo "finished: $(date '+%F %T %Z')"
+    echo "elapsed_s: $ELAPSED"
+    echo "rc: $RC"
+    echo "raw_bytes: $(stat -c%s "$RAW" 2>/dev/null || echo 0)"
+    echo "raw_sha256: $(sha256sum "$RAW" 2>/dev/null | cut -d' ' -f1)"
+} >> "$META"
+
+STATUS="ok"
+[[ $RC -ne 0 ]] && STATUS="rc=$RC"
+
+# One index line into the campaign log. Failures are indexed at exactly the same
+# resolution as successes, on purpose.
+if [[ -w "$LOG" ]]; then
+    printf -- '- %s | lane %s | node %s | %ds | %s | `%s` | raw `%s`%s\n' \
+        "$(date '+%F %H:%M')" "$LANE" "$NODE" "$ELAPSED" "$STATUS" \
+        "$*" "$RAW" \
+        "$([[ -n "$NOTE" ]] && echo " | $NOTE")" >> "$LOG"
+else
+    echo "heat-run: campaign log not writable at $LOG, raw is still at $RAW" >&2
+fi
+
+echo "heat-run: $LANE done in ${ELAPSED}s ($STATUS)" >&2
+exit "$RC"
