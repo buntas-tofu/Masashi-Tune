@@ -1,10 +1,10 @@
 # Distributed serving: the four-node face
 
-Status: DRAFT, not published. Written 2026-10-30. Sections 5 and 8 are
-deliberately empty. Everything else rests on a read-only pass against the live
-cluster on that date, on two operator-approved completion probes, and on the
-vendored launch toolkit, a community DGX Spark vLLM Docker project cloned
-locally.
+Status: published draft. Written 2026-10-30, updated 2026-11-03 with the
+numbers and the launch shape from a relaunch captured under `docker logs`.
+Everything else rests on a read-only pass against the live cluster on
+2026-10-30, on two operator-approved completion probes, and on the vendored
+launch toolkit, a community DGX Spark vLLM Docker project cloned locally.
 Authority: Tier 2 for anything read from a file or a live system, Tier 3 for
 observations labeled as such, Tier 1 for operator rulings.
 Floor: DMF. No em dashes, no ellipses. Label inference.
@@ -36,11 +36,21 @@ the serve command never carries them. A reader who types `--node-rank` or
 `--master-addr` into the serve line is fighting the launcher, and the launcher
 will win in a way that looks like a hang.
 
-On every node the container is `vllm_node` from the `vllm-node` image, and it
-sits in `sleep infinity` while vLLM is started through `docker exec`. That
-pattern matters more than it looks. It keeps the container alive across a
-restart of the server, and it also means the server's stdout belongs to whatever
-session ran the exec, not to the container. Section 5 pays for that detail.
+On every node the container is `vllm_node` from the `vllm-node` image, created
+by the launcher with `--rm`, which means a container whose foreground process
+exits is removed rather than left stopped. The first version of this face ran
+vLLM as a `docker exec` child while the container's foreground process was
+`sleep infinity`. That shape keeps the container alive across a server restart,
+and it also means the server's stdout belongs to whatever session ran the exec,
+not to the container. Section 5 pays for that detail: the containers were
+removed, and the startup transcript inside them went with the containers.
+
+The shape this chapter recommends, and the one the numbers in section 5 come
+from, runs the server as the container's own foreground process through the
+launcher's `--launch-script`. Then `docker logs` is the startup transcript, and
+a crash reads as a dead container instead of a healthy API with empty answers.
+The trade is real and worth stating: with `--rm`, a server crash costs the
+container, so the log has to be captured before the next incident, not after it.
 
 Ray reports four active nodes, and the view is the same from every node, which
 makes the ray check a single call rather than four. One nuance a reader will
@@ -80,7 +90,8 @@ OpenAI client receives it verbatim. A path is not a name. A client that hardcode
 it inherits the directory layout of one node, and a future keeper who moves the
 weights breaks every caller without changing a single flag. The fix is a served
 model name plus a restart, which is an operator decision, so this chapter records
-the wart and does not paper over it.
+the wart and does not paper over it. Ruled 2026-11-03: the path stays for now,
+so that callers are not broken in exchange for tidiness.
 
 The second contract is more expensive to discover. The face thinks before it
 answers. A request that does not disable thinking spends its completion budget in
@@ -107,15 +118,53 @@ tokens of configured context. At that geometry the binding constraint is the KV
 budget, not the weights, and the honest unit of accounting is per-node memory at
 a stated occupancy rather than a percentage of a pool that moves.
 
-This section carries no numbers yet, for a reason that belongs in the record. The
-server was launched through `docker exec`, its stdout is a pipe into a session
-that no longer exists, and `docker logs vllm_node` holds twenty-two lines of
-nothing. The startup lines that report KV cache size and load time are gone.
-Metrics expose usage but not capacity. Every number this section wants lives in a
-transcript that no longer exists, so the section waits for a relaunch under a
-persistent log. Until then a reader gets the shape, the reservation, the dtype,
-and the rule: launch under tmux or a log file, or the face's own startup
-evidence is unrecoverable.
+Measured 2026-11-03, from one boot whose transcript was captured rather than
+lost. These are single-boot figures with a file behind every one of them, which
+is the bar; they are not averages and they are not a benchmark.
+
+| measure | value |
+|---|---|
+| weights in memory, each node | 49.39 GiB |
+| KV cache available, rank 0 | 30.11 GiB |
+| KV cache available, each worker | 25.82 GiB |
+| GPU KV cache size, cluster | 3,132,033 tokens |
+| maximum concurrency at 262144 per request | 11.95x |
+| CUDA graph capture | 32s, 3.83 GiB |
+| weight load, rank 0 | 304.67s |
+| model load, rank 0 | 348.69s |
+| model load, fastest worker | 190.14s |
+| engine init to API ready | 9m28s |
+
+Rank 0 holds more available KV than the workers. The engine reports per rank,
+and rank 0's figure is the one a reader should quote for the API node, but the
+cluster total is what sets concurrency, and 3,132,033 divided by 262,144 is the
+11.95x the engine prints. The load spread across four identical nodes is roughly
+1.8 to 1 between the fastest worker and rank 0. Do not read that ratio as a
+hardware property yet; it is one boot, from local storage, with no warm-cache
+control.
+
+Startup is loud but not alarming, and the classes are worth knowing so a keeper
+does not chase them. Fifty-nine warnings during weight load report a float16
+scale being loaded into a differently typed parameter, which the loader coerces.
+Four classes sit beside them: the ray cluster's token authentication is disabled
+in this deployment, custom collectives are off because not every rank has an
+MNNVL-capable GPU, FlashInfer all-reduce is off at world size 4, and the model's
+own `generation_config.json` overrides vLLM's default sampling parameters. That
+last one is caller-facing: a client that assumes vLLM defaults is assuming
+wrong.
+
+This section failed once before it worked, and the failure is part of the
+record. The first attempt at these numbers was made against a server launched
+through `docker exec` while the container's foreground process sat in `sleep
+infinity`. Its stdout was a pipe into a session that no longer existed, and
+`docker logs vllm_node` held twenty-two lines of nothing. When that server went
+down, the containers were removed with it, and any transcript that had landed in
+the container layer went too. Metrics expose usage but not capacity, so the
+section could not be written from the live system either.
+
+The rule is therefore not "launch under a log file". It is: run the server as
+the container's own foreground process, and read `docker logs`. A face launched
+inside a container that outlives it has no transcript and no witness.
 
 ## 6. Three failures worth the space
 
@@ -133,8 +182,13 @@ The operator has held the upstream contribution, so the chapter records the
 symptom and the shape of the fix and leaves the patch where it lives.
 
 The second is the Marlin kernel constraint at tensor parallel 4, which the
-toolkit addresses with a model-specific mod. The chapter needs the symptom, not
-only the mod's name, or a reader hits it and cannot connect the two.
+toolkit addresses with a model-specific mod. The symptom itself is still not
+captured verbatim, and the honest record says why: with the mod present in the
+image, the 2026-11-03 boot names the Marlin path without failing. The log shows
+`MarlinLinearKernel for AutoGPTQLinearMethod`, the `MARLIN` WNA16 MoE backend,
+and `MarlinExperts` on every rank, and no error beside them. So a reader gets
+the healthy path and knows which mod makes it healthy, but cannot yet see what
+happens without it.
 
 The third is the driver. The toolkit pins 580.x and records a CUDAGraph capture
 deadlock on 590.x with GB10 unified memory. That is a hard requirement with a
@@ -158,20 +212,28 @@ because each rung reports separately, the failure was legible in seconds. That
 is the argument for per-rung reporting and against a single green light.
 
 Two rules come out of the same day. Run the recipe dry-run on the head node, or
-treat its output as fiction. And launch under a persistent log, because a face
-that cannot show its own startup lines cannot answer the next question anyone
-asks about it.
+treat its output as fiction. And launch the server as the container's own
+process, because a face that cannot show its own startup lines cannot answer the
+next question anyone asks about it.
 
 ## 8. The measurement slate
 
-Empty by design. The slate is six lines, each waiting on an instrument and a
-manifest:
+The slate is six lines. Two graduated on 2026-11-03, because a boot was captured
+that measured them. Four still wait on an instrument and a manifest.
 
-Prefill and decode throughput at 4k, 32k, 128k, and 262144. Tensor-parallel
-scaling at one, two, and four nodes. Cold start and load time from local
-storage. KV memory per node at fp8 with a stated occupancy. Restart behavior
-when a worker is lost mid-run. And an adapter A/B on this substrate, once the
-training lane produces one.
+Graduated, with the figures in section 5: cold start and load time from local
+storage, and KV memory per node at fp8 with a stated occupancy.
+
+Still waiting:
+
+- Prefill and decode throughput at 4k, 32k, 128k, and 262144.
+- Tensor-parallel scaling at one, two, and four nodes.
+- Restart behavior when a worker is lost mid-run.
+- An adapter A/B on this substrate, once the training lane produces one.
+
+Each of the four needs the same instrument built with the repo's discipline: one
+tool, one job, one self-test, and a manifest per run. None of them needs another
+relaunch, and none of them graduates from a probe.
 
 Two provisional observations exist in the appendix, clearly labeled. They are
 not slate numbers. A number graduates when a file in the tree reproduces it,
@@ -230,6 +292,37 @@ operator raises it.
 
 - Build the bench instrument for the slate, with a manifest per run.
 - Decide the served model name and schedule the restart that applies it.
-- Relaunch the face under a persistent log so the KV and load-time lines exist.
-- Record the Marlin TP4 symptom verbatim from a log, which needs the same
-  relaunch.
+- Record the Marlin TP4 symptom verbatim from a log. That needs a boot without
+  the mod, which is a deliberate failure injection, not a routine relaunch.
+- Capture a second boot's load times on a warm cache, so the rank 0 spread in
+  section 5 stops being a single observation.
+
+## Appendix C. Session receipts, 2026-11-03
+
+T7, the face relaunched under a captured log. The server was stopped and then
+started as the container's own foreground process, per section 5. The stop
+completed in 11 seconds. Within about two minutes the container had been removed
+on all four nodes: the launcher creates it with `--rm`, and the foreground
+process ended. The exact signal that ended it is Tier 3 and unproven. The model
+weights were never in the container layer, they are mounted read-only from the
+host, so nothing was lost but the container and the log inside it.
+
+T8, the rebuild and the numbers. Image digest verified identical on all four
+nodes before launch (sha256 a1fc4f18d3cb1671986feb92b05243ecd31a21957dd64e28da5c9e6125733aa0).
+Engine init at 23:12:19 UTC, application startup complete at 23:21:47 UTC, so
+9m28s from init to a live API. Weight and model load, 304.67s and 348.69s on
+rank 0, 190.14s on the fastest worker. Graph capture 32s at 3.83 GiB. KV 30.11
+GiB on rank 0 and 25.82 GiB per worker, 3,132,033 tokens cluster-wide, 11.95x
+concurrency at 262144.
+
+T9, post-rebuild verification. `serve/verify-face.sh` with all four nodes and
+RAY_MIN=4: health, model id and 262144 context, container running on four, ray
+four active, 0 failures, 0 undecided. Caller contract re-probed with thinking
+off at max_tokens 16: `content: "OK"`, finish reason stop, 2 completion tokens,
+0 reasoning tokens.
+
+The startup transcript behind T8 and T9 is 82K of log, sha256
+dc1239574b355f9cc174fdc25a5a10619a2b1981908b780db7f987dbd794d628. It is held
+in the operator's estate rather than shipped here, for the same reason the run
+tapes are: it carries node addresses and deployment paths. The figures it
+supports are quoted in section 5.
