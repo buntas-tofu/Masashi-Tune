@@ -18,6 +18,18 @@ operator does not control: an operations archive, a vendor's documentation,
 whatever the next campaign points it at. A poisoned block entering that lane
 is indistinguishable downstream from a legitimate one.
 
+## The scope of this claim
+
+This lane defends a text-reading stage at ingest. It screens document-borne text
+before a model reads it, reports what it found, and escalates only the band the
+small classifier cannot separate. It is not privilege scoping, not a separation
+between planning and execution, and not a defence against injection that arrives
+through an inter-agent message channel or that targets tool and rule selection
+rather than the prompt or the reply. The corpus carries no samples in those
+classes yet, so the lane cannot measure them. Where a deployment needs them,
+they are architecture decisions that sit outside this instrument, and a reader
+should not infer them from it.
+
 ## The screen
 
 `promptguard_service.py`. Llama Prompt Guard 2 86M, binary benign or

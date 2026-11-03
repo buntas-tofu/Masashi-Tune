@@ -21,6 +21,23 @@ Two backends, two shapes:
   makes vLLM grab 0.9 of the card for any model. Guests run offline with the
   model store mounted read-only.
 
+## The distributed face
+
+The index below is the single-box photograph this lane grew from. The face the
+rig runs now is one model split across four nodes: tensor parallel 4 under ray,
+launched by a vendored recipe, checked by a ladder. The topology, the deliberate
+delta between the shipped recipe and the live process line, the caller contract
+the reasoning parser imposes, three cutover failures with their receipts, and the
+verification ladder are in `CLUSTER.md`. Two sections there are empty on purpose,
+because the numbers they want were lost to a launch nobody captured.
+
+`verify-face.sh` walks the ladder read-only, cheapest rung first, and reports a
+verdict per rung. Anything it cannot decide reads `UNKNOWN`, never `PASS`:
+
+    FACE_HOST=head FACE_PORT=8000 \
+      FACE_NODES="head worker worker worker" RAY_MIN=4 \
+      EXPECT_MODEL=qwen serve/verify-face.sh
+
 ## Index
 
 | script | model class | purpose | default port |
@@ -40,6 +57,11 @@ Two backends, two shapes:
 | `serve-openmath14bk.sh` | OpenMath-Nemotron-14B-Kaggle | math bench guest, tuned sibling | 8092 |
 | `serve-openmath32b.sh` | OpenMath-Nemotron-32B | math bench guest, family ceiling | 8093 |
 | `serve-phi4rp.sh` | Phi-4-reasoning-plus 14B | math bench guest | 8090 |
+
+The multi-node lane sits outside this table: `CLUSTER.md` carries the shape of
+the distributed face and `verify-face.sh` carries the check. Everything in the
+table is a single-box vessel, and the two are not interchangeable descriptions
+of one rig.
 
 ### Port convention
 

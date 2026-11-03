@@ -7,6 +7,13 @@ agreement reported beside every score, and a recommendation labeled as
 inference and left to the operator. Names are normalized to model class and
 role register. Every figure is kept exactly as measured.
 
+The arc ends on 2026-08-22, and that date belongs to the record rather than to a
+heading. Every report here measured a face the rig no longer runs. The model
+swapped; the method did not, which is the argument the whole repository makes.
+Read the reports in date order as one exercise in not fooling yourself, not as a
+statement about the hardware in service now. The measurement slate for the
+current face, and the instruments it still waits on, are in `../serve/CLUSTER.md`.
+
 The set:
 
 | report | what it measures |
