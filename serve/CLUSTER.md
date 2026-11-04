@@ -235,6 +235,14 @@ Each of the four needs the same instrument built with the repo's discipline: one
 tool, one job, one self-test, and a manifest per run. None of them needs another
 relaunch, and none of them graduates from a probe.
 
+`bench/slate.py` is that instrument for the first line. It measures prefill and
+decode across rising context, sizes each prompt from a measured chars-per-token
+ratio, opens every call with a unique nonce so prefix caching cannot turn a
+prefill into a cache hit, and emits a manifest per run. Its first run is
+`bench/reports/SLATE_2026-11-03.md`, and that report keeps the instrument's own
+first-run contamination in view: without the nonce it reported throughput rising
+with context, which is the tell that a measurement is measuring the cache.
+
 Two provisional observations exist in the appendix, clearly labeled. They are
 not slate numbers. A number graduates when a file in the tree reproduces it,
 which is this repository's law and outranks any schedule.
