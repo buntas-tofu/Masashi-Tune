@@ -203,11 +203,14 @@ def rollup(rows: list[dict]) -> dict:
 
 
 def report_md(summary: dict, meta: dict) -> str:
+    # The report is a published artifact, so it carries no hostname, no home
+    # path, and no node name. The endpoint stays in the manifest, which lives in
+    # the estate; the report points at the run, not at the machine that ran it.
     lines = [
         "# The slate: prefill and decode on the distributed face",
         "",
         f"Status: measured, date-addressed, single instrument. Written {meta['started']} "
-        f"against `{meta['url']}`.",
+        f"against the endpoint configured for this run.",
         "Not a benchmark and not a comparison across models. These are this face's",
         "numbers on this run, with the run's manifest beside them.",
         "Authority: Tier 2 for every figure, computed from the raw tape named below.",
@@ -256,7 +259,8 @@ def report_md(summary: dict, meta: dict) -> str:
                      f"{', '.join(str(x) for x in s['finish'])} |")
     lines += [
         "",
-        f"Raw tape: `{meta['raw']}`. Manifest lane: `{meta['lane']}`.",
+        f"Raw tape: `{Path(meta['raw']).name}`, in the instrument's run directory. "
+        f"Manifest: the estate's daily run lane for this date.",
         "",
         "The tape is not shipped with this report. It sits in the run directory beside",
         "the instrument, and in this tree that directory is ignored by ruling, which is",
@@ -361,6 +365,10 @@ def selftest() -> int:
             check("each run gets its own tape stem, and it has no colons",
                   run_stem("2026-11-03T18:54:27-05:00") == "2026-11-03T185427"
                   and run_stem("2026-11-03T19:02:11-05:00") != run_stem("2026-11-03T18:54:27-05:00"))
+            check("report carries no home path",
+                  "/home/" not in md and "~/" not in md)
+            check("report carries no absolute path",
+                  not any(tok in md for tok in ("/Users/", "C:\\\\")))
     finally:
         srv.shutdown()
 
