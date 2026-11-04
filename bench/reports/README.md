@@ -29,6 +29,7 @@ The set:
 | `SUSTAINED_2026-08-04.md` | Several hours of continuous load on two seats in one box, and where the time actually goes. |
 | `SUSTAINED_LOAD_2026-08-02.md` | A first fleet telemetry capture: one eight-GPU-class node under a real campaign, plus idle figures across the fleet. |
 | `DEEPSEEK_V4_FLASH_CHARACTERIZATION_2026-08-22.md` | A checkpoint characterization computed from the index and config: integrity, parameter accounting, and KV physics. |
+| `SLATE_2026-11-03.md` | Prefill and decode throughput across rising context on the four-node face, with the instrument's own first-run cache contamination recorded beside the corrected numbers. |
 | `reasoner-streams-2026-08-17.md` | A 120B reasoner under parallel streams: the throughput curve, what it licenses, and what it does not. |
 
 Reading notes:
