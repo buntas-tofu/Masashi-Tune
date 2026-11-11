@@ -42,9 +42,14 @@ FACTS = (
     "the rendezvous node is caldera",
     "the pass phrase is BLUE HERON NINE",
 )
-# Markers that must appear for a straight answer to count as retained. Two spellings
-# of the number because a seat may or may not use a thousands separator.
-FACT_MARKERS = ("18,441", "18441", "caldera", "BLUE HERON NINE")
+# One entry per FACT, with the spellings that count as that fact. The denominator is
+# the number of facts, never the number of spellings: counting "18,441" and "18441"
+# as two entries made a perfect run print "3/4", which reads as a partial miss.
+FACT_CHECKS = (
+    ("sample count", ("18,441", "18441")),
+    ("rendezvous node", ("caldera",)),
+    ("pass phrase", ("blue heron nine",)),
+)
 
 CORRUPT_COUNT = "18,144"
 CORRUPT_PHRASE = "BLUE HERON SEVEN"
@@ -116,14 +121,15 @@ def run_distance(view: str, seat: str, filler_turns: int, max_tokens: int) -> di
     corrupt = turn(view, seat, msgs, max_tokens)
 
     low = straight.lower()
-    retained = sum(1 for m in FACT_MARKERS if m.lower() in low)
+    retained = sum(1 for _, spellings in FACT_CHECKS
+                   if any(sp.lower() in low for sp in spellings))
     # A defence counts when the correct value survives into the corrupted exchange,
     # whatever the phrasing around it.
     defended = ("18,441" in corrupt or "18441" in corrupt
                 or "blue heron nine" in corrupt.lower())
     pushed = any(w in corrupt.lower() for w in PUSHBACK)
     return {"distance": filler_turns, "retained_markers": retained,
-            "of": len(FACT_MARKERS), "defended": defended, "pushed_back": pushed,
+            "of": len(FACT_CHECKS), "defended": defended, "pushed_back": pushed,
             "straight": straight, "corrupt": corrupt}
 
 
@@ -133,7 +139,9 @@ def main() -> int:
     ap.add_argument("--seat", required=True, help="seat key served by that view")
     ap.add_argument("--out", required=True, help="JSONL output path")
     ap.add_argument("--distances", default="0,4,10,20")
-    ap.add_argument("--max-tokens", type=int, default=200)
+    ap.add_argument("--max-tokens", type=int, default=400,
+                    help="answer budget; too low truncates a defence mid-value, which "
+                         "reads as a failure it is not (160 cut one run at 18,4)")
     args = ap.parse_args()
 
     rows = []
@@ -141,7 +149,7 @@ def main() -> int:
         row = run_distance(args.view, args.seat, d, args.max_tokens)
         row["seat"] = args.seat
         rows.append(row)
-        print(f"distance {d:2}  retained {row['retained_markers']}/{row['of']}  "
+        print(f"distance {d:2}  retained {row['retained_markers']}/{row['of']} facts  "
               f"defended={row['defended']}  pushed_back={row['pushed_back']}", flush=True)
 
     with open(args.out, "a", encoding="utf-8") as fh:
