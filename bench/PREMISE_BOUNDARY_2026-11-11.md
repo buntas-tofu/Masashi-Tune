@@ -86,6 +86,42 @@ alongside the receipt policy that already binds fetched results. The second half
 already works, which is the encouraging part: she holds a fetched result against a
 confident contradiction now.
 
+
+## After the ruling: the stated miss, and a corrected score
+
+Ruled the same evening, implemented in serve 148da7a, and re-measured. The first
+after-policy run scored zero in both not-told shapes, but that was the scorer, not
+the seat: the seat had begun declining in its own words ("the search found five
+strong hits for Marchetti, but none of them are a direct summary of a call", "that
+result points to a script, which feels generic") and the scorer only recognised
+"don't have" style refusals.
+
+With a vocabulary that recognises a decline however it is phrased, and re-scoring
+the saved rows offline rather than making new calls:
+
+| shape | before the policy | after the policy |
+|---|---|---|
+| told | 9 of 9 | 3 of 3 |
+| plausible unseen | 2 of 9 (22%) | 2 of 3 (67%) |
+| framed false premise | 0 of 9 (0%) | 1 of 3 (33%) |
+
+So the ruling moved both not-told shapes substantially and cost nothing on the told
+case, which is the pair that matters: no over-refusal, and a real gain on the
+boundary.
+
+Small n on the after side, three per shape. Treat it as a direction and not a rate.
+
+## The residual, and why the miss rarely fires
+
+`memory_search` returns top-k by cosine with no relevance floor. A nonsense query
+came back with five "hits" at roughly 0.70, so that lane is never empty, so the
+stated miss never fires on it, and the seat always has irrelevant material to work
+with. `search_files` does state the miss correctly when it has nothing.
+
+Adding a relevance floor to the memory lane is a threshold decision with real
+consequences for recall, so it is recorded as its own question rather than folded
+into this ruling.
+
 ## Limits
 
 1. One seat, one day, three scenarios, small n. This locates a boundary and does not
