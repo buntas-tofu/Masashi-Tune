@@ -40,9 +40,9 @@ it came from without the spine naming a document.
 
 ## Excluded, and why
 
-- `relpath` — document paths with personal surnames.
-- `raw`, `parsed`, `fields`, `candidate`, `read` — model input or output.
-- `error` — free text, and routinely a filesystem path. A failure is still visible
+- `relpath`: document paths with personal surnames.
+- `raw`, `parsed`, `fields`, `candidate`, `read`: model input or output.
+- `error`: free text, and routinely a filesystem path. A failure is still visible
   as `ok` / `parse_ok`; only the message is dropped.
 
 ## Rebuild
